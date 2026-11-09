@@ -1,0 +1,8 @@
+{
+  "name": "Cloud Trading Journal",
+  "description": "專業交易員的雲端日誌系統，支援 Google 登入、手動雲端備份與還原、IndexedDB 本地儲存。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A trading transaction record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "side": { "type": "string", "enum": ["Long", "Short"] },
+        "result": { "type": "string", "enum": ["Profit", "Loss", "Open"] },
+        "rating": { "type": "string", "enum": ["A", "B", "C"] },
+        "uValue": { "type": "number" },
+        "tagIds": { "type": "array", "items": { "type": "string" } },
+        "stopLossReason": { "type": "string" },
+        "entryReason": { "type": "string" },
+        "review": { "type": "string" },
+        "screenshots": { "type": "array", "items": { "type": "string" } },
+        "strategyId": { "type": "string" },
+        "checklistScore": { "type": "number" },
+        "passedRequiredCheck": { "type": "boolean" },
+        "missingRequiredItems": { "type": "array", "items": { "type": "string" } },
+        "checklistSnapshot": { "type": "array", "items": { "type": "object" } },
+        "forceSubmit": { "type": "boolean" },
+        "modeUsed": { "type": "string", "enum": ["relaxed", "semi", "strict"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "symbol", "date", "side", "result", "uValue", "createdAt", "updatedAt"]
+    },
+    "Tag": {
+      "title": "Tag",
+      "description": "A global tag for transactions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and subscription plan information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "plan": { "type": "string", "enum": ["free", "pro"] },
+        "disciplineMode": { "type": "string", "enum": ["relaxed", "semi", "strict"] },
+        "initialCapital": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "plan", "disciplineMode", "createdAt", "updatedAt"]
+    },
+    "StrategyTemplate": {
+      "title": "StrategyTemplate",
+      "description": "Trading strategy template.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "isFavorite": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "isFavorite", "createdAt", "updatedAt"]
+    },
+    "StrategyChecklistItem": {
+      "title": "StrategyChecklistItem",
+      "description": "Item in a strategy checklist.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "templateId": { "type": "string" },
+        "text": { "type": "string" },
+        "weight": { "type": "number" },
+        "required": { "type": "boolean" },
+        "sortOrder": { "type": "number" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "templateId", "text", "weight", "required", "sortOrder", "active", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document."
+    },
+    "/users/{userId}/trades/{tradeId}": {
+      "schema": "Transaction",
+      "description": "User's trading transactions."
+    },
+    "/users/{userId}/tags/{tagId}": {
+      "schema": "Tag",
+      "description": "User's global tags."
+    },
+    "/users/{userId}/strategies/{strategyId}": {
+      "schema": "StrategyTemplate",
+      "description": "User's strategy templates."
+    },
+    "/users/{userId}/strategies/{strategyId}/items/{itemId}": {
+      "schema": "StrategyChecklistItem",
+      "description": "Items for a strategy template."
+    },
+    "/backups/{userId}": {
+      "schema": "UserProfile",
+      "description": "User cloud backup summary document."
+    }
+  }
+}

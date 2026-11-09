@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{userId}/screenshots/{imageId} {
+      // 僅允許擁有者讀取、上傳與刪除
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024 // 限制 5MB
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 預設拒絕其他所有存取
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

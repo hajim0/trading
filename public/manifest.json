@@ -1,0 +1,27 @@
+{
+  "name": "Trading Journey",
+  "short_name": "Trading",
+  "description": "專業交易員的雲端日誌系統",
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["finance", "productivity"],
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+export const COLORS = {
+  BACKGROUND: '#0B0B0B',
+  CARD: '#1A1A1A',
+  BORDER: '#2A2A2A',
+  TEXT_PRIMARY: '#FFFFFF',
+  TEXT_SECONDARY: '#A0A0A0',
+  LONG: '#22C55E', // Green
+  SHORT: '#EF4444', // Red
+  PROFIT: '#22C55E',
+  LOSS: '#EF4444',
+  GRAY_IDLE: '#3A3A3A'
+} as const;
