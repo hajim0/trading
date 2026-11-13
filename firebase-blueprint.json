@@ -134,7 +134,27 @@
     },
     "/backups/{userId}": {
       "schema": "UserProfile",
-      "description": "User cloud backup summary document."
+      "description": "User cloud backup summary manifest document."
+    },
+    "/users/{userId}/backup_trades/{tradeId}": {
+      "schema": "Transaction",
+      "description": "Isolated cloud backup snapshot of user's trading transactions."
+    },
+    "/users/{userId}/backup_tags/{tagId}": {
+      "schema": "Tag",
+      "description": "Isolated cloud backup snapshot of user's tags."
+    },
+    "/users/{userId}/backup_strategies/{strategyId}": {
+      "schema": "StrategyTemplate",
+      "description": "Isolated cloud backup snapshot of user's strategy templates."
+    },
+    "/users/{userId}/backup_rules/{ruleId}": {
+      "schema": "StrategyChecklistItem",
+      "description": "Isolated cloud backup snapshot of user's strategy checklist items."
+    },
+    "/users/{userId}/backup_blobs/{blobId}": {
+      "schema": "Blob",
+      "description": "Isolated cloud backup snapshot of user's trade screenshots and thumbnails."
     }
   }
 }

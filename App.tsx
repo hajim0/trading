@@ -154,14 +154,29 @@ export default function App() {
     return null;
   };
 
-  // --- Initialize Settings ---
+  // --- Initialize & Sync Settings ---
   useEffect(() => {
-    const s = settingsStore.get();
-    setInitialCapital(s.initialCapital);
-    setDisciplineMode(s.disciplineMode);
-    setTheme(s.theme);
-    setLocalSettingsCapital(String(s.initialCapital || '10000'));
+    const applySettings = (s: ReturnType<typeof settingsStore.get>) => {
+      setInitialCapital(s.initialCapital);
+      setDisciplineMode(s.disciplineMode);
+      setTheme(s.theme);
+      setLocalSettingsCapital(String(s.initialCapital || '10000'));
+    };
+
+    applySettings(settingsStore.get());
     setDisciplineGrades({ S: 90, A: 80, B: 70 }); // Default
+
+    const handleSettingsUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        applySettings(customEvent.detail);
+      } else {
+        applySettings(settingsStore.get());
+      }
+    };
+
+    window.addEventListener('trading-settings-updated', handleSettingsUpdated);
+    return () => window.removeEventListener('trading-settings-updated', handleSettingsUpdated);
   }, []);
 
   /**

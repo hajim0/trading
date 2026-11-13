@@ -35,7 +35,13 @@ export function DataManagement({
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExportingJson, setIsExportingJson] = useState(false);
   const [isImportingJson, setIsImportingJson] = useState(false);
-  const [cloudInfo, setCloudInfo] = useState<{ updatedAt: number, tradeCount: number } | null>(null);
+  const [cloudInfo, setCloudInfo] = useState<{
+    updatedAt: number;
+    tradeCount: number;
+    tagsCount?: number;
+    strategiesCount?: number;
+    blobsCount?: number;
+  } | null>(null);
   const [lastOpResult, setLastOpResult] = useState<string | null>(null);
 
   const [confirmAction, setConfirmAction] = useState<'cloud-restore' | 'import-json' | null>(null);
@@ -154,7 +160,10 @@ export function DataManagement({
     try {
       const res = await dataService.cloudBackup(user);
       setLastOpResult(`success-backed-up-${res.tradeCount}-trades`);
-      toast.success(`雲端備份成功！已更新 ${res.tradeCount} 筆交易、${res.tagsCount} 個標籤至雲端`, { id: toastId });
+      toast.success(
+        `雲端備份成功！已儲存獨立備份快照：${res.tradeCount} 筆交易、${res.tagsCount} 個標籤、${res.blobsCount} 個圖片附件`,
+        { id: toastId }
+      );
       await loadCloudInfo();
     } catch (e: any) {
       console.error('[Backup Center] Cloud upload error:', e);
@@ -186,7 +195,7 @@ export function DataManagement({
       const res = await dataService.cloudRestore(user);
       setLastOpResult(`success-restored-${res.tradeCount}-trades`);
       toast.success(
-        `已成功從雲端還原 ${res.tradeCount} 筆交易紀錄、${res.tagsCount} 個標籤！`, 
+        `已成功從雲端還原 ${res.tradeCount} 筆交易紀錄、${res.tagsCount} 個標籤與 ${res.blobsCount} 個圖片附件！`, 
         { id: toastId }
       );
       await loadCloudInfo();
@@ -321,10 +330,20 @@ export function DataManagement({
               </div>
               <div>
                 <p className="text-2xl font-black text-foreground tabular-nums">
-                  {cloudInfo ? cloudInfo.tradeCount : 0} <span className="text-sm font-normal text-muted-foreground">筆雲端紀錄</span>
+                  {cloudInfo ? cloudInfo.tradeCount : 0} <span className="text-sm font-normal text-muted-foreground">筆雲端備份</span>
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {user ? `使用者 ID: ${user.uid.slice(0, 10)}...` : '尚未登入雲端帳號'}
+                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                  {cloudInfo ? (
+                    <>
+                      <span>標籤 {cloudInfo.tagsCount ?? 0} 個</span>
+                      <span>•</span>
+                      <span>策略 {cloudInfo.strategiesCount ?? 0} 組</span>
+                      <span>•</span>
+                      <span>圖片附件 {cloudInfo.blobsCount ?? 0} 個</span>
+                    </>
+                  ) : (
+                    <span>{user ? `使用者 ID: ${user.uid.slice(0, 10)}...` : '尚未登入雲端帳號'}</span>
+                  )}
                 </p>
               </div>
               <p className="text-[10px] text-muted-foreground font-mono pt-1 border-t border-border">

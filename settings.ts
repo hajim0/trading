@@ -36,6 +36,9 @@ export const settingsStore = {
     const current = this.get();
     const updated = { ...current, ...settings };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('trading-settings-updated', { detail: updated }));
+    }
     return updated;
   },
 

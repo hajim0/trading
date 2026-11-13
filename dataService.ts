@@ -167,20 +167,28 @@ export const dataService = {
    * Save or update a trade in both Local IndexedDB and Cloud Firestore
    */
   async saveTrade(trade: Transaction, user: User | null): Promise<void> {
+    const now = Date.now();
     const cleanTrade = sanitizeForFirestore({
       ...trade,
       userId: user ? user.uid : (trade.userId || 'local-user'),
-      updatedAt: Date.now()
+      updatedAt: now,
+      localOnly: !user,
+      syncStatus: 'pending' as const
     });
 
-    // 1. Save to Local IndexedDB
+    // 1. Save to Local IndexedDB first
     await localDb.trades.put(cleanTrade);
 
     // 2. If logged in, save to Cloud Firestore and await blob uploads so switching devices/logging out never loses images
     if (user && firestore) {
       try {
+        const syncedTrade = sanitizeForFirestore({
+          ...cleanTrade,
+          localOnly: false,
+          syncStatus: 'synced' as const
+        });
         const tradeRef = doc(firestore, 'users', user.uid, 'trades', trade.id);
-        await setDoc(tradeRef, cleanTrade);
+        await setDoc(tradeRef, syncedTrade);
 
         const blobUploads: Promise<void>[] = [];
         if (trade.imageThumbnailId) {
@@ -192,6 +200,9 @@ export const dataService = {
         if (blobUploads.length > 0) {
           await Promise.all(blobUploads);
         }
+
+        // Mark local record as synced once cloud commit succeeds
+        await localDb.trades.put(syncedTrade);
       } catch (err) {
         console.error('[dataService] Failed to sync trade to Firestore:', err);
         throw err;
@@ -200,62 +211,89 @@ export const dataService = {
   },
 
   /**
-   * Delete a trade from both Local IndexedDB and Cloud Firestore
+   * Check whether a blobId is still referenced by any remaining local trade
+   */
+  async isBlobReferencedLocally(blobId: string, excludeTradeIds: Set<string>): Promise<boolean> {
+    if (!blobId) return false;
+    const refTrade = await localDb.trades
+      .filter(t => !excludeTradeIds.has(t.id) && (t.imageOriginalId === blobId || t.imageThumbnailId === blobId))
+      .first();
+    return Boolean(refTrade);
+  },
+
+  /**
+   * Delete a trade from Local IndexedDB and LIVE Cloud Firestore
+   * Note: Isolated cloud backup snapshots (backup_trades, backup_blobs) are NEVER touched here.
    */
   async deleteTrade(id: string, user: User | null): Promise<void> {
-    // 1. Delete associated local blobs
     const trade = await localDb.trades.get(id);
-    if (trade?.imageOriginalId) {
+    const excludeIds = new Set([id]);
+
+    // 1. Delete associated local blobs only if not referenced by another trade
+    const deleteOriginalBlob = trade?.imageOriginalId
+      ? !(await this.isBlobReferencedLocally(trade.imageOriginalId, excludeIds))
+      : false;
+    const deleteThumbBlob = trade?.imageThumbnailId
+      ? !(await this.isBlobReferencedLocally(trade.imageThumbnailId, excludeIds))
+      : false;
+
+    if (deleteOriginalBlob && trade?.imageOriginalId) {
       await localDb.blobs.delete(trade.imageOriginalId).catch(() => {});
     }
-    if (trade?.imageThumbnailId) {
+    if (deleteThumbBlob && trade?.imageThumbnailId) {
       await localDb.blobs.delete(trade.imageThumbnailId).catch(() => {});
     }
 
     // 2. Delete from Local IndexedDB
     await localDb.trades.delete(id);
 
-    // 3. If logged in, delete trade and blobs from Cloud Firestore
+    // 3. If logged in, delete from LIVE Cloud Firestore (backup snapshots remain untouched!)
     if (user && firestore) {
       try {
         const tradeRef = doc(firestore, 'users', user.uid, 'trades', id);
         await deleteDoc(tradeRef);
 
-        if (trade?.imageOriginalId) {
-          deleteDoc(doc(firestore, 'users', user.uid, 'blobs', trade.imageOriginalId)).catch(() => {});
+        if (deleteOriginalBlob && trade?.imageOriginalId) {
+          await deleteDoc(doc(firestore, 'users', user.uid, 'blobs', trade.imageOriginalId)).catch(() => {});
         }
-        if (trade?.imageThumbnailId) {
-          deleteDoc(doc(firestore, 'users', user.uid, 'blobs', trade.imageThumbnailId)).catch(() => {});
+        if (deleteThumbBlob && trade?.imageThumbnailId) {
+          await deleteDoc(doc(firestore, 'users', user.uid, 'blobs', trade.imageThumbnailId)).catch(() => {});
         }
       } catch (err) {
         console.error('[dataService] Failed to delete trade from Firestore:', err);
+        throw err;
       }
     }
   },
 
   /**
-   * Bulk delete trades from both Local IndexedDB and Cloud Firestore
+   * Bulk delete trades from Local IndexedDB and LIVE Cloud Firestore
+   * Note: Isolated cloud backup snapshots (backup_trades, backup_blobs) are NEVER touched here.
    */
   async bulkDeleteTrades(ids: string[], user: User | null): Promise<void> {
     if (!ids || ids.length === 0) return;
 
-    const blobIdsToDelete: string[] = [];
+    const excludeSet = new Set(ids);
+    const candidateBlobIds = new Set<string>();
 
-    // 1. Delete from local database and blobs
+    // 1. Collect candidate blobs & delete trades from local database
     for (const id of ids) {
       const trade = await localDb.trades.get(id);
-      if (trade?.imageOriginalId) {
-        blobIdsToDelete.push(trade.imageOriginalId);
-        await localDb.blobs.delete(trade.imageOriginalId).catch(() => {});
-      }
-      if (trade?.imageThumbnailId) {
-        blobIdsToDelete.push(trade.imageThumbnailId);
-        await localDb.blobs.delete(trade.imageThumbnailId).catch(() => {});
-      }
+      if (trade?.imageOriginalId) candidateBlobIds.add(trade.imageOriginalId);
+      if (trade?.imageThumbnailId) candidateBlobIds.add(trade.imageThumbnailId);
       await localDb.trades.delete(id);
     }
 
-    // 2. If logged in, batch delete trades and blobs from Cloud Firestore
+    const blobIdsToDelete: string[] = [];
+    for (const bId of candidateBlobIds) {
+      const stillReferenced = await this.isBlobReferencedLocally(bId, excludeSet);
+      if (!stillReferenced) {
+        blobIdsToDelete.push(bId);
+        await localDb.blobs.delete(bId).catch(() => {});
+      }
+    }
+
+    // 2. If logged in, batch delete trades and unreferenced live blobs from Cloud Firestore
     if (user && firestore) {
       try {
         const CHUNK_SIZE = 400;
@@ -278,6 +316,7 @@ export const dataService = {
         }
       } catch (err) {
         console.error('[dataService] Failed to bulk delete from Firestore:', err);
+        throw err;
       }
     }
   },
@@ -444,34 +483,63 @@ export const dataService = {
         cloudRules.push(d.data() as StrategyChecklistItem);
       });
 
-      // Hydrate into local IndexedDB
-      if (cloudTrades.length > 0) {
-        await localDb.trades.bulkPut(cloudTrades);
+      // Hydrate into local IndexedDB cleanly (respecting newer offline edits & cross-device deletions)
+      const localUserTradesBefore = await localDb.trades
+        .filter(t => t.userId === user.uid && !t.deleted)
+        .toArray();
+      const localTradesMap = new Map(localUserTradesBefore.map(t => [t.id, t]));
+
+      const tradesToPutLocally: any[] = [];
+      for (const ct of cloudTrades) {
+        const normalizedCloud = {
+          ...ct,
+          userId: user.uid,
+          localOnly: false,
+          syncStatus: 'synced' as const
+        };
+        const lt = localTradesMap.get(ct.id);
+        if (!lt || !lt.localOnly || (ct.updatedAt || 0) >= (lt.updatedAt || 0)) {
+          tradesToPutLocally.push(normalizedCloud);
+        }
+      }
+      if (tradesToPutLocally.length > 0) {
+        await localDb.trades.bulkPut(tradesToPutLocally);
       }
       if (cloudTags.length > 0) {
-        await localDb.tags.bulkPut(cloudTags);
+        await localDb.tags.bulkPut(cloudTags.map(tg => ({ ...tg, userId: user.uid })));
       }
       if (cloudStrats.length > 0) {
-        await localDb.strategies.bulkPut(cloudStrats);
+        await localDb.strategies.bulkPut(cloudStrats.map(s => ({ ...s, userId: user.uid })));
       }
       if (cloudRules.length > 0) {
         await localDb.rules.bulkPut(cloudRules);
       }
 
-      // Check if local DB has trades for this user that are not yet in Firestore
+      // Reconcile local trades missing from live Firestore:
+      // - If localOnly === true (created offline or never pushed): push to Firestore & mark synced
+      // - If localOnly === false (was already synced earlier, now absent in cloud): deleted on another device -> remove locally
       const cloudTradeIds = new Set(cloudTrades.map(t => t.id));
+      for (const lt of localUserTradesBefore) {
+        if (!cloudTradeIds.has(lt.id)) {
+          if (lt.localOnly || lt.syncStatus === 'pending') {
+            const syncedTrade = sanitizeForFirestore({
+              ...lt,
+              userId: user.uid,
+              localOnly: false,
+              syncStatus: 'synced' as const
+            });
+            const tradeRef = doc(firestore, 'users', user.uid, 'trades', lt.id);
+            await setDoc(tradeRef, syncedTrade);
+            await localDb.trades.put(syncedTrade);
+          } else {
+            await localDb.trades.delete(lt.id);
+          }
+        }
+      }
+
       const localUserTrades = await localDb.trades
         .filter(t => t.userId === user.uid && !t.deleted)
         .toArray();
-
-      const unsyncedLocalTrades = localUserTrades.filter(t => !cloudTradeIds.has(t.id));
-      if (unsyncedLocalTrades.length > 0) {
-        console.log(`[dataService] Syncing ${unsyncedLocalTrades.length} unsynced local trades up to Firestore...`);
-        for (const t of unsyncedLocalTrades) {
-          const tradeRef = doc(firestore, 'users', user.uid, 'trades', t.id);
-          await setDoc(tradeRef, sanitizeForFirestore(t));
-        }
-      }
 
       // 5. Pre-fetch user blobs from Firestore into local IndexedDB
       try {
@@ -690,17 +758,20 @@ export const dataService = {
     if (currentUser && firestore) {
       try {
         console.log('[dataService] Syncing imported records to Cloud Firestore...');
-        for (const t of backupTrades) {
-          await setDoc(doc(firestore, 'users', currentUser.uid, 'trades', t.id), sanitizeForFirestore(t));
-        }
-        for (const tg of backupTags) {
-          await setDoc(doc(firestore, 'users', currentUser.uid, 'tags', tg.id), sanitizeForFirestore(tg));
-        }
-        for (const s of backupStrategies) {
-          await setDoc(doc(firestore, 'users', currentUser.uid, 'strategies', s.id), sanitizeForFirestore(s));
-        }
-        for (const r of backupRules) {
-          await setDoc(doc(firestore, 'users', currentUser.uid, 'rules', r.id), sanitizeForFirestore(r));
+        const syncedTrades = backupTrades.map(t => ({
+          ...t,
+          userId: currentUser.uid,
+          localOnly: false,
+          syncStatus: 'synced' as const
+        }));
+        await Promise.all([
+          this.writeDocsInChunks(currentUser.uid, 'trades', syncedTrades as any),
+          this.writeDocsInChunks(currentUser.uid, 'tags', backupTags as any),
+          this.writeDocsInChunks(currentUser.uid, 'strategies', backupStrategies as any),
+          this.writeDocsInChunks(currentUser.uid, 'rules', backupRules as any)
+        ]);
+        if (syncedTrades.length > 0) {
+          await localDb.trades.bulkPut(syncedTrades as any);
         }
         await this.syncMissingLocalBlobsToCloud(currentUser.uid);
       } catch (err) {
@@ -722,23 +793,74 @@ export const dataService = {
   },
 
   /**
-   * One-click Cloud Backup (saves metadata and records to users/{userId} subcollections and backup summary)
+   * Helper: write an array of docs with IDs to users/{userId}/{subcollection} in safe batches of 400
+   */
+  async writeDocsInChunks(
+    userId: string,
+    subcollection: string,
+    items: Array<{ id: string } & Record<string, any>>
+  ): Promise<void> {
+    if (!firestore || items.length === 0) return;
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+      const chunk = items.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(firestore);
+      for (const item of chunk) {
+        const ref = doc(firestore, 'users', userId, subcollection, item.id);
+        batch.set(ref, sanitizeForFirestore(item));
+      }
+      await batch.commit();
+    }
+  },
+
+  /**
+   * Helper: delete stale doc IDs from users/{userId}/{subcollection} that are no longer in keepIds
+   */
+  async reconcileCollection(
+    userId: string,
+    subcollection: string,
+    keepIds: Set<string>
+  ): Promise<void> {
+    if (!firestore) return;
+    const snap = await getDocs(collection(firestore, 'users', userId, subcollection));
+    const staleIds: string[] = [];
+    snap.forEach(d => {
+      if (!keepIds.has(d.id)) {
+        staleIds.push(d.id);
+      }
+    });
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < staleIds.length; i += CHUNK_SIZE) {
+      const chunk = staleIds.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(firestore);
+      for (const id of chunk) {
+        batch.delete(doc(firestore, 'users', userId, subcollection, id));
+      }
+      await batch.commit();
+    }
+  },
+
+  /**
+   * One-click Cloud Backup:
+   * Saves an ISOLATED point-in-time snapshot into backup_trades / backup_tags / backup_strategies / backup_rules / backup_blobs
+   * (so deleting live trades later NEVER deletes your cloud backup!) AND syncs live collections.
    */
   async cloudBackup(user: User): Promise<{ 
     tradeCount: number; 
     tagsCount: number; 
     strategiesCount: number; 
-    rulesCount: number; 
+    rulesCount: number;
+    blobsCount: number;
     updatedAt: number 
   }> {
     if (!firestore || !user?.uid) {
       throw new Error('未登入或 Firebase 未連線，無法執行雲端備份');
     }
 
-    console.log(`[dataService] Starting comprehensive cloud backup for user ${user.uid}...`);
+    console.log(`[dataService] Starting isolated cloud backup snapshot for user ${user.uid}...`);
 
     // 1. Fetch fresh local records for this user
-    const trades = await localDb.trades
+    const rawTrades = await localDb.trades
       .filter(t => t.userId === user.uid && !t.deleted)
       .toArray();
 
@@ -756,85 +878,136 @@ export const dataService = {
 
     const settings = settingsStore.get();
     const now = Date.now();
+    const backedUpAtIso = new Date(now).toISOString();
 
-    // 2. Batch write trades to users/{user.uid}/trades in chunks of 400
-    const CHUNK_SIZE = 400;
-    for (let i = 0; i < trades.length; i += CHUNK_SIZE) {
-      const chunk = trades.slice(i, i + CHUNK_SIZE);
-      const batch = writeBatch(firestore);
-      for (const t of chunk) {
-        const tradeRef = doc(firestore, 'users', user.uid, 'trades', t.id);
-        batch.set(tradeRef, sanitizeForFirestore({
-          ...t,
-          userId: user.uid,
-          updatedAt: t.updatedAt || now
-        }));
-      }
-      await batch.commit();
+    const trades = rawTrades.map(t => ({
+      ...t,
+      userId: user.uid,
+      localOnly: false,
+      syncStatus: 'synced' as const,
+      cloudBackedUpAt: backedUpAtIso,
+      updatedAt: t.updatedAt || now
+    }));
+
+    const normalizedTags = tags.map(tg => ({
+      ...tg,
+      userId: user.uid,
+      updatedAt: tg.updatedAt || now
+    }));
+
+    const normalizedStrategies = strategies.map(s => ({
+      ...s,
+      userId: user.uid,
+      updatedAt: s.updatedAt || now
+    }));
+
+    const normalizedRules = rules.map(r => ({
+      ...r,
+      updatedAt: r.updatedAt || now
+    }));
+
+    // 2. Write to LIVE subcollections AND ISOLATED backup_* snapshot subcollections
+    await Promise.all([
+      this.writeDocsInChunks(user.uid, 'trades', trades),
+      this.writeDocsInChunks(user.uid, 'backup_trades', trades),
+      this.writeDocsInChunks(user.uid, 'tags', normalizedTags),
+      this.writeDocsInChunks(user.uid, 'backup_tags', normalizedTags),
+      this.writeDocsInChunks(user.uid, 'strategies', normalizedStrategies),
+      this.writeDocsInChunks(user.uid, 'backup_strategies', normalizedStrategies),
+      this.writeDocsInChunks(user.uid, 'rules', normalizedRules),
+      this.writeDocsInChunks(user.uid, 'backup_rules', normalizedRules)
+    ]);
+
+    // Update local trades to reflect synced & backed-up state
+    if (trades.length > 0) {
+      await localDb.trades.bulkPut(trades);
     }
 
-    // Batch write tags
-    for (let i = 0; i < tags.length; i += CHUNK_SIZE) {
-      const chunk = tags.slice(i, i + CHUNK_SIZE);
-      const batch = writeBatch(firestore);
-      for (const tg of chunk) {
-        const tagRef = doc(firestore, 'users', user.uid, 'tags', tg.id);
-        batch.set(tagRef, sanitizeForFirestore({
-          ...tg,
-          userId: user.uid,
-          updatedAt: tg.updatedAt || now
-        }));
-      }
-      await batch.commit();
+    // 3. Reconcile stale docs in backup_* collections (safe AFTER all current docs are written)
+    await Promise.all([
+      this.reconcileCollection(user.uid, 'backup_trades', new Set(trades.map(t => t.id))),
+      this.reconcileCollection(user.uid, 'backup_tags', new Set(normalizedTags.map(t => t.id))),
+      this.reconcileCollection(user.uid, 'backup_strategies', new Set(normalizedStrategies.map(s => s.id))),
+      this.reconcileCollection(user.uid, 'backup_rules', new Set(normalizedRules.map(r => r.id)))
+    ]);
+
+    // 4. Backup all referenced blobs into BOTH live `blobs` and isolated `backup_blobs`
+    const referencedBlobIds = new Set<string>();
+    for (const t of trades) {
+      if (t.imageThumbnailId) referencedBlobIds.add(t.imageThumbnailId);
+      if (t.imageOriginalId) referencedBlobIds.add(t.imageOriginalId);
     }
 
-    // Batch write strategies
-    for (let i = 0; i < strategies.length; i += CHUNK_SIZE) {
-      const chunk = strategies.slice(i, i + CHUNK_SIZE);
-      const batch = writeBatch(firestore);
-      for (const s of chunk) {
-        const stratRef = doc(firestore, 'users', user.uid, 'strategies', s.id);
-        batch.set(stratRef, sanitizeForFirestore({
-          ...s,
-          userId: user.uid,
-          updatedAt: s.updatedAt || now
-        }));
-      }
-      await batch.commit();
+    // First ensure any local blobs are uploaded to live `blobs`
+    await this.syncMissingLocalBlobsToCloud(user.uid).catch(err => {
+      console.warn('[dataService] Live blob sync notice:', err);
+    });
+
+    // Check which blobs are already present in `backup_blobs` to avoid redundant uploads
+    const existingBackupBlobsSnap = await getDocs(collection(firestore, 'users', user.uid, 'backup_blobs'));
+    const existingBackupBlobIds = new Set<string>();
+    existingBackupBlobsSnap.forEach(d => existingBackupBlobIds.add(d.id));
+
+    let totalBackupBlobsCount = 0;
+    const blobIdsList = Array.from(referencedBlobIds);
+
+    // Upload missing blobs in safe small parallel batches of 4
+    const BLOB_CONCURRENCY = 4;
+    for (let i = 0; i < blobIdsList.length; i += BLOB_CONCURRENCY) {
+      const chunk = blobIdsList.slice(i, i + BLOB_CONCURRENCY);
+      await Promise.all(chunk.map(async (bId) => {
+        if (existingBackupBlobIds.has(bId)) {
+          totalBackupBlobsCount++;
+          return;
+        }
+        try {
+          // Prefer local blob; fallback to live cloud `blobs` doc if device only had cloud copy
+          const localBlob = await localDb.blobs.get(bId);
+          if (localBlob && localBlob.data) {
+            const safeBlob = await ensureFirestoreSafeBlob(localBlob.data);
+            const base64 = await blobToBase64(safeBlob);
+            await setDoc(doc(firestore!, 'users', user.uid, 'backup_blobs', bId), sanitizeForFirestore({
+              id: bId,
+              userId: user.uid,
+              type: localBlob.type || 'thumbnail',
+              mimeType: safeBlob.type || localBlob.mimeType || 'image/webp',
+              base64,
+              createdAt: localBlob.createdAt || now,
+              updatedAt: now
+            }));
+            totalBackupBlobsCount++;
+          } else {
+            const liveBlobSnap = await getDoc(doc(firestore!, 'users', user.uid, 'blobs', bId));
+            if (liveBlobSnap.exists()) {
+              await setDoc(doc(firestore!, 'users', user.uid, 'backup_blobs', bId), sanitizeForFirestore({
+                ...liveBlobSnap.data(),
+                updatedAt: now
+              }));
+              totalBackupBlobsCount++;
+            }
+          }
+        } catch (blobErr) {
+          console.warn(`[dataService] Failed to backup blob ${bId}:`, blobErr);
+        }
+      }));
     }
 
-    // Batch write rules
-    for (let i = 0; i < rules.length; i += CHUNK_SIZE) {
-      const chunk = rules.slice(i, i + CHUNK_SIZE);
-      const batch = writeBatch(firestore);
-      for (const r of chunk) {
-        const ruleRef = doc(firestore, 'users', user.uid, 'rules', r.id);
-        batch.set(ruleRef, sanitizeForFirestore({
-          ...r,
-          updatedAt: r.updatedAt || now
-        }));
-      }
-      await batch.commit();
-    }
+    // Reconcile stale blobs in backup_blobs
+    await this.reconcileCollection(user.uid, 'backup_blobs', referencedBlobIds);
 
-    // 3. Sync all referenced local blobs up to Firestore
-    try {
-      await this.syncMissingLocalBlobsToCloud(user.uid);
-    } catch (blobErr) {
-      console.warn('[dataService] Failed to sync some blobs in cloudBackup:', blobErr);
-    }
-
-    // 4. Write summary cloud backup doc (with metadata and settings)
+    // 5. Write summary cloud backup manifest doc (version 3 = isolated snapshot collections)
     const backupSummary = sanitizeForFirestore({
-      version: 2,
+      version: 3,
+      snapshotVersion: 3,
       exportedAt: now,
       updatedAt: now,
       userId: user.uid,
       userEmail: user.email || '',
       tradeCount: trades.length,
-      tagsCount: tags.length,
-      strategiesCount: strategies.length,
-      rulesCount: rules.length,
+      tagsCount: normalizedTags.length,
+      strategiesCount: normalizedStrategies.length,
+      rulesCount: normalizedRules.length,
+      blobsCount: totalBackupBlobsCount,
       settings
     });
 
@@ -851,25 +1024,29 @@ export const dataService = {
       }), { merge: true });
     } catch (_) {}
 
-    console.log(`[dataService] Cloud backup complete: ${trades.length} trades, ${tags.length} tags, ${strategies.length} strategies`);
+    console.log(`[dataService] Cloud backup snapshot complete: ${trades.length} trades, ${normalizedTags.length} tags, ${totalBackupBlobsCount} blobs`);
 
     return {
       tradeCount: trades.length,
-      tagsCount: tags.length,
-      strategiesCount: strategies.length,
-      rulesCount: rules.length,
+      tagsCount: normalizedTags.length,
+      strategiesCount: normalizedStrategies.length,
+      rulesCount: normalizedRules.length,
+      blobsCount: totalBackupBlobsCount,
       updatedAt: now
     };
   },
 
   /**
-   * One-click Cloud Restore (combines live subcollections and backup snapshot)
+   * One-click Cloud Restore:
+   * Restores from isolated cloud backup snapshots (`backup_trades`, `backup_blobs`, etc.)
+   * and pushes the restored records back into BOTH Local IndexedDB AND Live Cloud Firestore!
    */
   async cloudRestore(user: User): Promise<{ 
     tradeCount: number; 
     tagsCount: number; 
     strategiesCount: number; 
-    rulesCount: number; 
+    rulesCount: number;
+    blobsCount: number;
     updatedAt: number 
   }> {
     if (!firestore || !user?.uid) {
@@ -878,66 +1055,67 @@ export const dataService = {
 
     console.log(`[dataService] Starting comprehensive cloud restore for user ${user.uid}...`);
 
-    // 1. Fetch live subcollections from Firestore
-    // Trades
-    const tradesCol = collection(firestore, 'users', user.uid, 'trades');
-    const tradesSnap = await getDocs(tradesCol);
-    const cloudTradesMap = new Map<string, Transaction>();
-    tradesSnap.forEach(d => {
-      const data = d.data() as Transaction;
-      if (data && data.id) {
-        cloudTradesMap.set(data.id, { ...data, userId: user.uid });
-      }
-    });
-
-    // Tags
-    const tagsCol = collection(firestore, 'users', user.uid, 'tags');
-    const tagsSnap = await getDocs(tagsCol);
-    const cloudTagsMap = new Map<string, Tag>();
-    tagsSnap.forEach(d => {
-      const data = d.data() as Tag;
-      if (data && data.id) {
-        cloudTagsMap.set(data.id, { ...data, userId: user.uid });
-      }
-    });
-
-    // Strategies
-    const stratCol = collection(firestore, 'users', user.uid, 'strategies');
-    const stratSnap = await getDocs(stratCol);
-    const cloudStratsMap = new Map<string, StrategyTemplate>();
-    stratSnap.forEach(d => {
-      const data = d.data() as StrategyTemplate;
-      if (data && data.id) {
-        cloudStratsMap.set(data.id, { ...data, userId: user.uid });
-      }
-    });
-
-    // Rules
-    const rulesCol = collection(firestore, 'users', user.uid, 'rules');
-    const rulesSnap = await getDocs(rulesCol);
-    const cloudRulesMap = new Map<string, StrategyChecklistItem>();
-    rulesSnap.forEach(d => {
-      const data = d.data() as StrategyChecklistItem;
-      if (data && data.id) {
-        cloudRulesMap.set(data.id, data);
-      }
-    });
-
-    // 2. Also check backups/{userId} document for snapshot/settings
+    // 1. Check backup manifest doc
     const backupRef = doc(firestore, 'backups', user.uid);
+    let backupData: Record<string, any> | null = null;
     let backupUpdatedAt = Date.now();
-
     try {
       const backupSnap = await getDoc(backupRef);
       if (backupSnap.exists()) {
-        const backupData = backupSnap.data();
+        backupData = backupSnap.data();
         backupUpdatedAt = backupData.exportedAt || backupData.updatedAt || Date.now();
+      }
+    } catch (e) {
+      console.warn('[dataService] Failed reading backups manifest:', e);
+    }
 
-        // If backup doc contains embedded trades array, merge any that might be missing from subcollection
+    // 2. Fetch from isolated backup_* snapshot collections first
+    const [bTradesSnap, bTagsSnap, bStratsSnap, bRulesSnap] = await Promise.all([
+      getDocs(collection(firestore, 'users', user.uid, 'backup_trades')),
+      getDocs(collection(firestore, 'users', user.uid, 'backup_tags')),
+      getDocs(collection(firestore, 'users', user.uid, 'backup_strategies')),
+      getDocs(collection(firestore, 'users', user.uid, 'backup_rules'))
+    ]);
+
+    const cloudTradesMap = new Map<string, Transaction>();
+    const cloudTagsMap = new Map<string, Tag>();
+    const cloudStratsMap = new Map<string, StrategyTemplate>();
+    const cloudRulesMap = new Map<string, StrategyChecklistItem>();
+
+    bTradesSnap.forEach(d => {
+      const data = d.data() as Transaction;
+      if (data && data.id) {
+        cloudTradesMap.set(data.id, {
+          ...data,
+          userId: user.uid,
+          localOnly: false,
+          syncStatus: 'synced'
+        } as any);
+      }
+    });
+    bTagsSnap.forEach(d => {
+      const data = d.data() as Tag;
+      if (data && data.id) cloudTagsMap.set(data.id, { ...data, userId: user.uid });
+    });
+    bStratsSnap.forEach(d => {
+      const data = d.data() as StrategyTemplate;
+      if (data && data.id) cloudStratsMap.set(data.id, { ...data, userId: user.uid });
+    });
+    bRulesSnap.forEach(d => {
+      const data = d.data() as StrategyChecklistItem;
+      if (data && data.id) cloudRulesMap.set(data.id, data);
+    });
+
+    const hasSnapshotV3 = (backupData?.snapshotVersion ?? 0) >= 3 ||
+      cloudTradesMap.size > 0 || cloudTagsMap.size > 0 || cloudStratsMap.size > 0;
+
+    // Legacy fallback: if no v3 snapshot exists yet, merge from embedded backupData arrays and live subcollections
+    if (!hasSnapshotV3) {
+      if (backupData) {
         if (Array.isArray(backupData.trades)) {
           for (const t of backupData.trades) {
             if (t && t.id && !cloudTradesMap.has(t.id)) {
-              cloudTradesMap.set(t.id, { ...t, userId: user.uid });
+              cloudTradesMap.set(t.id, { ...t, userId: user.uid, localOnly: false, syncStatus: 'synced' } as any);
             }
           }
         }
@@ -962,12 +1140,32 @@ export const dataService = {
             }
           }
         }
-        if (backupData.settings) {
-          settingsStore.set(backupData.settings);
-        }
       }
-    } catch (e) {
-      console.warn('[dataService] Optional backup summary doc fetch error (continuing with subcollections):', e);
+
+      const [liveTradesSnap, liveTagsSnap, liveStratsSnap, liveRulesSnap] = await Promise.all([
+        getDocs(collection(firestore, 'users', user.uid, 'trades')),
+        getDocs(collection(firestore, 'users', user.uid, 'tags')),
+        getDocs(collection(firestore, 'users', user.uid, 'strategies')),
+        getDocs(collection(firestore, 'users', user.uid, 'rules'))
+      ]);
+      liveTradesSnap.forEach(d => {
+        const data = d.data() as Transaction;
+        if (data && data.id && !cloudTradesMap.has(data.id)) {
+          cloudTradesMap.set(data.id, { ...data, userId: user.uid, localOnly: false, syncStatus: 'synced' } as any);
+        }
+      });
+      liveTagsSnap.forEach(d => {
+        const data = d.data() as Tag;
+        if (data && data.id && !cloudTagsMap.has(data.id)) cloudTagsMap.set(data.id, { ...data, userId: user.uid });
+      });
+      liveStratsSnap.forEach(d => {
+        const data = d.data() as StrategyTemplate;
+        if (data && data.id && !cloudStratsMap.has(data.id)) cloudStratsMap.set(data.id, { ...data, userId: user.uid });
+      });
+      liveRulesSnap.forEach(d => {
+        const data = d.data() as StrategyChecklistItem;
+        if (data && data.id && !cloudRulesMap.has(data.id)) cloudRulesMap.set(data.id, data);
+      });
     }
 
     const finalTrades = Array.from(cloudTradesMap.values());
@@ -975,48 +1173,66 @@ export const dataService = {
     const finalStrategies = Array.from(cloudStratsMap.values());
     const finalRules = Array.from(cloudRulesMap.values());
 
-    // Check if there is anything in cloud
     if (finalTrades.length === 0 && finalTags.length === 0 && finalStrategies.length === 0) {
       throw new Error('雲端目前尚無備份紀錄。請先於有資料的裝置點擊「備份到個人雲端」。');
     }
 
-    // 3. Clear existing local user records and replace with fresh cloud records
-    await localDb.trades.filter(t => t.userId === user.uid).delete();
-    await localDb.tags.filter(t => t.userId === user.uid).delete();
-    await localDb.strategies.filter(s => s.userId === user.uid).delete();
-
-    // Bulk put restored items
-    if (finalTrades.length > 0) {
-      await localDb.trades.bulkPut(finalTrades);
-    }
-    if (finalTags.length > 0) {
-      await localDb.tags.bulkPut(finalTags);
-    }
-    if (finalStrategies.length > 0) {
-      await localDb.strategies.bulkPut(finalStrategies);
-    }
-    if (finalRules.length > 0) {
-      await localDb.rules.bulkPut(finalRules);
+    // 3. Restore settings (locally + to user profile)
+    if (backupData?.settings) {
+      settingsStore.set(backupData.settings);
+      try {
+        const profileUpdates: Record<string, any> = { updatedAt: Date.now() };
+        if (typeof backupData.settings.initialCapital === 'number' && !isNaN(backupData.settings.initialCapital)) {
+          profileUpdates.initialCapital = backupData.settings.initialCapital;
+        }
+        if (backupData.settings.disciplineMode) {
+          profileUpdates.disciplineMode = backupData.settings.disciplineMode;
+        }
+        await setDoc(doc(firestore, 'users', user.uid), sanitizeForFirestore(profileUpdates), { merge: true });
+      } catch (_) {}
     }
 
-    // 4. Restore user image blobs from Firestore into local IndexedDB
+    // 4. Restore image blobs from `backup_blobs` (falling back to live `blobs` if legacy) into BOTH Local IndexedDB and Live Firestore `blobs`
+    let restoredBlobsCount = 0;
     try {
-      const blobsCol = collection(firestore, 'users', user.uid, 'blobs');
-      const blobsSnap = await getDocs(blobsCol);
-      for (const bDoc of blobsSnap.docs) {
-        const bData = bDoc.data();
-        if (bData && bData.id && bData.base64) {
-          const existing = await localDb.blobs.get(bData.id);
-          if (!existing) {
+      const backupBlobsSnap = await getDocs(collection(firestore, 'users', user.uid, 'backup_blobs'));
+      const blobDocsToRestore = new Map<string, any>();
+      backupBlobsSnap.forEach(d => blobDocsToRestore.set(d.id, d.data()));
+
+      if (blobDocsToRestore.size === 0) {
+        const liveBlobsSnap = await getDocs(collection(firestore, 'users', user.uid, 'blobs'));
+        liveBlobsSnap.forEach(d => blobDocsToRestore.set(d.id, d.data()));
+      }
+
+      // Also check existing live blobs to avoid unnecessary re-writes
+      const existingLiveBlobsSnap = await getDocs(collection(firestore, 'users', user.uid, 'blobs'));
+      const existingLiveBlobIds = new Set<string>();
+      existingLiveBlobsSnap.forEach(d => existingLiveBlobIds.add(d.id));
+
+      for (const [bId, bData] of blobDocsToRestore.entries()) {
+        if (bData && bData.base64) {
+          // Restore into local IndexedDB
+          const existingLocal = await localDb.blobs.get(bId);
+          if (!existingLocal) {
             const blobObj = await base64ToBlob(bData.base64);
             await localDb.blobs.put({
-              id: bData.id,
+              id: bId,
               type: bData.type || 'thumbnail',
               mimeType: bData.mimeType || blobObj.type || 'image/webp',
               data: blobObj,
               createdAt: bData.createdAt || Date.now()
             });
           }
+          // Restore back into LIVE Firestore `users/{uid}/blobs/{bId}` if missing (e.g. deleted along with trade!)
+          if (!existingLiveBlobIds.has(bId)) {
+            await setDoc(doc(firestore, 'users', user.uid, 'blobs', bId), sanitizeForFirestore({
+              ...bData,
+              id: bId,
+              userId: user.uid,
+              updatedAt: Date.now()
+            }));
+          }
+          restoredBlobsCount++;
         }
       }
       notifyBlobsHydrated();
@@ -1024,54 +1240,100 @@ export const dataService = {
       console.warn('[dataService] Error restoring blobs in cloudRestore:', bErr);
     }
 
-    console.log(`[dataService] Cloud restore completed: ${finalTrades.length} trades, ${finalTags.length} tags, ${finalStrategies.length} strategies`);
+    // 5. Replace Local IndexedDB user records with restored snapshot
+    await localDb.trades.filter(t => t.userId === user.uid).delete();
+    await localDb.tags.filter(t => t.userId === user.uid).delete();
+    await localDb.strategies.filter(s => s.userId === user.uid).delete();
+
+    if (finalTrades.length > 0) await localDb.trades.bulkPut(finalTrades as any);
+    if (finalTags.length > 0) await localDb.tags.bulkPut(finalTags);
+    if (finalStrategies.length > 0) await localDb.strategies.bulkPut(finalStrategies);
+    if (finalRules.length > 0) await localDb.rules.bulkPut(finalRules);
+
+    // 6. Push restored snapshot back into LIVE Firestore subcollections & reconcile deletions
+    // so reloading / logging out & back in / opening mobile keeps all restored trades intact!
+    await Promise.all([
+      this.writeDocsInChunks(user.uid, 'trades', finalTrades as any),
+      this.writeDocsInChunks(user.uid, 'tags', finalTags as any),
+      this.writeDocsInChunks(user.uid, 'strategies', finalStrategies as any),
+      this.writeDocsInChunks(user.uid, 'rules', finalRules as any)
+    ]);
+
+    await Promise.all([
+      this.reconcileCollection(user.uid, 'trades', new Set(finalTrades.map(t => t.id))),
+      this.reconcileCollection(user.uid, 'tags', new Set(finalTags.map(t => t.id))),
+      this.reconcileCollection(user.uid, 'strategies', new Set(finalStrategies.map(s => s.id))),
+      this.reconcileCollection(user.uid, 'rules', new Set(finalRules.map(r => r.id)))
+    ]);
+
+    console.log(`[dataService] Cloud restore completed: ${finalTrades.length} trades, ${finalTags.length} tags, ${restoredBlobsCount} blobs`);
 
     return {
       tradeCount: finalTrades.length,
       tagsCount: finalTags.length,
       strategiesCount: finalStrategies.length,
       rulesCount: finalRules.length,
+      blobsCount: restoredBlobsCount,
       updatedAt: backupUpdatedAt
     };
   },
 
   /**
-   * Get latest cloud backup info
+   * Get latest cloud backup info from isolated snapshot manifest and collections
    */
   async getCloudBackupInfo(user: User | null): Promise<{ 
     updatedAt: number; 
     tradeCount: number;
     tagsCount: number;
     strategiesCount: number;
+    blobsCount: number;
   } | null> {
     if (!firestore || !user?.uid) return null;
 
     try {
-      // 1. Check backup doc
+      // 1. Check backup manifest doc
       const backupRef = doc(firestore, 'backups', user.uid);
       const snap = await getDoc(backupRef);
-      let backupData = snap.exists() ? snap.data() : null;
+      const backupData = snap.exists() ? snap.data() : null;
 
-      // 2. Check live subcollections count
-      const tradesCol = collection(firestore, 'users', user.uid, 'trades');
-      const tradesSnap = await getDocs(tradesCol);
+      // 2. Verify actual isolated backup snapshot counts
+      const [bTradesSnap, bTagsSnap, bStratsSnap, bBlobsSnap] = await Promise.all([
+        getDocs(collection(firestore, 'users', user.uid, 'backup_trades')),
+        getDocs(collection(firestore, 'users', user.uid, 'backup_tags')),
+        getDocs(collection(firestore, 'users', user.uid, 'backup_strategies')),
+        getDocs(collection(firestore, 'users', user.uid, 'backup_blobs'))
+      ]);
 
-      const tagsCol = collection(firestore, 'users', user.uid, 'tags');
-      const tagsSnap = await getDocs(tagsCol);
+      if (bTradesSnap.size > 0 || bTagsSnap.size > 0 || bStratsSnap.size > 0 || (backupData && (backupData.snapshotVersion ?? 0) >= 3)) {
+        return {
+          updatedAt: backupData?.exportedAt || backupData?.updatedAt || Date.now(),
+          tradeCount: bTradesSnap.size || backupData?.tradeCount || 0,
+          tagsCount: bTagsSnap.size || backupData?.tagsCount || 0,
+          strategiesCount: bStratsSnap.size || backupData?.strategiesCount || 0,
+          blobsCount: bBlobsSnap.size || backupData?.blobsCount || 0
+        };
+      }
 
-      const stratCol = collection(firestore, 'users', user.uid, 'strategies');
-      const stratSnap = await getDocs(stratCol);
+      // 3. Legacy fallback before v3 snapshots existed
+      const [tradesSnap, tagsSnap, stratSnap, blobsSnap] = await Promise.all([
+        getDocs(collection(firestore, 'users', user.uid, 'trades')),
+        getDocs(collection(firestore, 'users', user.uid, 'tags')),
+        getDocs(collection(firestore, 'users', user.uid, 'strategies')),
+        getDocs(collection(firestore, 'users', user.uid, 'blobs'))
+      ]);
 
-      const tradeCount = Math.max(backupData?.tradeCount ?? 0, tradesSnap.size);
-      const tagsCount = Math.max(backupData?.tagsCount ?? 0, tagsSnap.size);
-      const strategiesCount = Math.max(backupData?.strategiesCount ?? 0, stratSnap.size);
+      const tradeCount = tradesSnap.size || (Array.isArray(backupData?.trades) ? backupData.trades.length : 0);
+      const tagsCount = tagsSnap.size || (Array.isArray(backupData?.tags) ? backupData.tags.length : 0);
+      const strategiesCount = stratSnap.size || (Array.isArray(backupData?.strategies) ? backupData.strategies.length : 0);
+      const blobsCount = blobsSnap.size || 0;
 
-      if (tradeCount > 0 || tagsCount > 0 || strategiesCount > 0 || backupData) {
+      if (tradeCount > 0 || tagsCount > 0 || strategiesCount > 0) {
         return {
           updatedAt: backupData?.exportedAt || backupData?.updatedAt || Date.now(),
           tradeCount,
           tagsCount,
-          strategiesCount
+          strategiesCount,
+          blobsCount
         };
       }
 
