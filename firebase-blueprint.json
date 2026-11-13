@@ -90,6 +90,21 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "templateId", "text", "weight", "required", "sortOrder", "active", "createdAt", "updatedAt"]
+    },
+    "Blob": {
+      "title": "Blob",
+      "description": "User uploaded trade image or chart blob.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["original", "thumbnail"] },
+        "mimeType": { "type": "string" },
+        "base64": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "type", "mimeType", "base64", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -100,6 +115,10 @@
     "/users/{userId}/trades/{tradeId}": {
       "schema": "Transaction",
       "description": "User's trading transactions."
+    },
+    "/users/{userId}/blobs/{blobId}": {
+      "schema": "Blob",
+      "description": "User's trade screenshots and thumbnail blobs."
     },
     "/users/{userId}/tags/{tagId}": {
       "schema": "Tag",
