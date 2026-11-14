@@ -32,6 +32,8 @@ import { cn, calculateTradeStats, calculateGrade, calculateDisciplineScore, calc
 import { Toaster, toast } from 'sonner';
 import { logger } from './lib/logger';
 import { Card, CardContent } from '@/components/ui/card';
+import { PWAInstallButton, OfflineIndicator } from '@/components/PWAInstallButton';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 
 type View = 'dashboard' | 'list' | 'add' | 'edit' | 'detail' | 'analysis' | 'tags' | 'settings' | 'strategies' | 'backup';
 
@@ -137,13 +139,14 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
   });
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set());
   const deleteTimers = useRef<Record<string, any>>({});
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [isInIframe, setIsInIframe] = useState(false);
+  const {
+    isInstallable,
+    isStandalone,
+    isInIframe,
+    install: handleInstallClick,
+  } = usePWAInstall();
   const [legacyResults, setLegacyResults] = useState<RecoveryScanResult[]>([]);
   const [showLegacyBanner, setShowLegacyBanner] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
@@ -308,42 +311,6 @@ export default function App() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsInstallable(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // Detect iOS
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    setIsIOS(isIOSDevice);
-
-    // Check if already installed
-    const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    setIsStandalone(standalone);
-    
-    if (standalone) {
-      setIsInstallable(false);
-    }
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstallable(false);
-    }
-    setDeferredPrompt(null);
-  };
 
   useEffect(() => {
     if (!auth) {
@@ -854,9 +821,12 @@ export default function App() {
           </div>
           <span className="font-bold tracking-tighter text-lg uppercase">Elite Trader</span>
         </div>
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2">
-          {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        <div className="flex items-center gap-2">
+          <PWAInstallButton variant="header" />
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2">
+            {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </header>
 
       {/* Sidebar Overlay */}
@@ -969,6 +939,7 @@ export default function App() {
         </nav>
 
         <div className="mt-auto pt-4 border-t border-border space-y-3">
+          <PWAInstallButton variant="sidebar" />
           {user ? (
               <div className="flex flex-col gap-2.5">
                 <div className="px-3.5 py-2.5 bg-muted/60 rounded-xl border border-border flex items-center gap-3">
@@ -1641,7 +1612,13 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
               >
-                <DataManagement user={user} />
+                <DataManagement
+                  user={user}
+                  isStandalone={isStandalone}
+                  isInIframe={isInIframe}
+                  isInstallable={isInstallable}
+                  handleInstallClick={handleInstallClick}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1683,6 +1660,8 @@ export default function App() {
                   <Zap size={14} className="text-amber-500" />
                   <span>直接以本地離線模式使用 (免登入)</span>
                 </Button>
+
+                <PWAInstallButton variant="button" className="w-full" />
               </div>
               <div className="flex items-center gap-2 text-xs text-neutral-600">
                 <Wifi size={12} />
@@ -1701,6 +1680,9 @@ export default function App() {
         />
       )}
       
+      {/* Offline Indicator */}
+      <OfflineIndicator />
+
       {/* Internal Debug Panel */}
       <DebugPanel />
     </div>

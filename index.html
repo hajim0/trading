@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -7,13 +7,26 @@
     <meta name="description" content="專業交易員的雲端日誌系統，支援 Google 登入、手動雲端備份與還原、IndexedDB 本地儲存。" />
     <meta property="og:title" content="Cloud Trading Journal" />
     <meta property="og:description" content="專業交易員的雲端日誌系統，支援 Google 登入、手動雲端備份與還原、IndexedDB 本地儲存。" />
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#0c0c0e" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Trading" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico" />
+    <meta name="apple-mobile-web-app-title" content="EliteTrader" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <script>
+      window.__pwaDeferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__pwaDeferredPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-prompt-available'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__pwaDeferredPrompt = null;
+        window.dispatchEvent(new CustomEvent('pwa-app-installed'));
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

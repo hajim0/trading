@@ -1,5 +1,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { registerSW } from 'virtual:pwa-register';
+
+try {
+  registerSW({
+    immediate: true,
+    onRegisteredSW(swUrl) {
+      console.log('[PWA] Service Worker registered:', swUrl);
+    },
+    onRegisterError(error) {
+      console.warn('[PWA] Service Worker registration warning:', error);
+    },
+  });
+} catch (swErr) {
+  console.warn('[PWA] Service Worker initialization skipped:', swErr);
+}
 
 const root = document.getElementById('root');
 

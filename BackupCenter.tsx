@@ -15,6 +15,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { cn } from '@/lib/utils';
 import { syncService } from '../lib/sync';
 import { dataService } from '../lib/dataService';
+import { PWAInstallButton } from '@/components/PWAInstallButton';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 
 interface DataManagementProps {
   user?: User | null;
@@ -599,33 +601,32 @@ export function DataManagement({
   );
 }
 
-const InstallAppSection = ({ isStandalone, isInIframe, isInstallable, handleInstallClick }: any) => (
-  <Card className="bg-card border-border rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center gap-6 text-card-foreground">
-    <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-      <Download size={28} />
-    </div>
-    <div className="text-left flex-1 space-y-1">
-      <h3 className="font-bold text-base text-foreground">安裝 Elite Trader 應用程式 (PWA)</h3>
-      <p className="text-xs text-muted-foreground leading-relaxed">
-        將應用程式加入主螢幕以獲得更穩定的離線存取與閃電般的啟動速度。即使在沒有網路的環境下，仍可正常記錄交易並於連線後同步。
-      </p>
-    </div>
-    
-    <div className="w-full md:w-auto shrink-0">
-      {isStandalone ? (
-        <div className="px-5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center gap-2 font-mono text-xs font-bold">
-          <ShieldCheck size={16} />
-          <span className="uppercase tracking-wider">APP MODE ACTIVE</span>
-        </div>
-      ) : (
-        isInIframe ? (
-          <Button onClick={() => window.open(window.location.href, '_blank')} className="bg-primary text-primary-foreground hover:bg-primary/90 h-11 rounded-xl text-xs font-bold px-8 cursor-pointer shadow-sm">開啟獨立分頁安裝</Button>
-        ) : isInstallable ? (
-          <Button onClick={handleInstallClick} className="bg-primary text-primary-foreground hover:bg-primary/90 h-11 rounded-xl text-xs font-bold px-8 animate-pulse cursor-pointer shadow-sm">立即安裝</Button>
+const InstallAppSection = ({ isStandalone: propStandalone }: { isStandalone?: boolean; isInIframe?: boolean; isInstallable?: boolean; handleInstallClick?: () => void }) => {
+  const { isStandalone: hookStandalone } = usePWAInstall();
+  const isStandalone = propStandalone ?? hookStandalone;
+
+  return (
+    <Card className="bg-card border-border rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center gap-6 text-card-foreground">
+      <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+        <Download size={28} />
+      </div>
+      <div className="text-left flex-1 space-y-1">
+        <h3 className="font-bold text-base text-foreground">安裝 Elite Trader 應用程式 (PWA)</h3>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          將應用程式加入主螢幕或桌面 Dock 以獲得更穩定的離線存取與原生視窗體驗。支援 iOS、Android、Windows 與 macOS。
+        </p>
+      </div>
+
+      <div className="w-full md:w-auto shrink-0">
+        {isStandalone ? (
+          <div className="px-5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-2 font-mono text-xs font-bold">
+            <ShieldCheck size={16} />
+            <span className="uppercase tracking-wider">APP MODE ACTIVE</span>
+          </div>
         ) : (
-          <p className="text-[11px] text-muted-foreground italic">請使用瀏覽器選單「加入主畫面」</p>
-        )
-      )}
-    </div>
-  </Card>
-);
+          <PWAInstallButton variant="button" className="w-full md:w-auto" />
+        )}
+      </div>
+    </Card>
+  );
+};

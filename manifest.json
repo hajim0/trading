@@ -1,26 +1,33 @@
 {
-  "name": "Trading Journey",
-  "short_name": "Trading",
-  "description": "專業交易員的雲端日誌系統",
-  "theme_color": "#000000",
-  "background_color": "#ffffff",
+  "id": "/",
+  "name": "Elite Trader 交易日誌",
+  "short_name": "EliteTrader",
+  "description": "專業交易員的雲端日誌系統，支援跨裝置同步、離線記帳與完整雲端備份還原。",
+  "theme_color": "#0c0c0e",
+  "background_color": "#0c0c0e",
   "display": "standalone",
-  "orientation": "portrait",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "categories": ["finance", "productivity"],
   "start_url": "/",
-  "id": "/",
   "scope": "/",
+  "lang": "zh-Hant",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ]
