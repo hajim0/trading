@@ -1012,7 +1012,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 md:ml-64 p-4 md:p-8 lg:p-12 min-h-screen relative">
+      <main className="flex-1 min-w-0 max-w-full overflow-x-hidden md:ml-64 p-4 md:p-8 lg:p-12 min-h-screen relative">
         {isSwitching && (
           <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -1020,7 +1020,7 @@ export default function App() {
           </div>
         )}
         
-        <div className="max-w-5xl mx-auto">
+        <div className="w-full min-w-0 max-w-5xl mx-auto">
           {/* Main Content Area - Rendered even if auth is loading to show framework */}
           {isEffectiveLoggedIn ? (
             <AnimatePresence mode="wait">
@@ -1258,7 +1258,7 @@ export default function App() {
                   <p className="text-neutral-500 text-sm">調整您的交易日誌偏好設定。</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-w-0">
                   <div className="p-6 rounded-xl border border-border bg-card space-y-4">
                     <div className="flex flex-col gap-1">
                       <h3 className="font-bold">初始資金設定</h3>
@@ -1465,7 +1465,7 @@ export default function App() {
                     </Button>
                   </div>
 
-                  <section className="col-span-1 md:col-span-2 space-y-8 pt-10 border-t border-[#1A1A1A]">
+                  <section className="col-span-1 md:col-span-2 min-w-0 space-y-8 pt-10 border-t border-border">
                     <div className="flex flex-col gap-1">
                       <h3 className="font-bold flex items-center gap-2 text-xl">
                         <DatabaseIcon size={22} className="text-amber-500" />

@@ -50,18 +50,21 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
     return null;
   }
 
+  const currentUrl = typeof window !== 'undefined' ? window.location.href : '/';
+
   const handleAction = async () => {
     if (isInIframe) {
-      setActiveTab(getDefaultTab(ecosystem));
-      setShowGuide(true);
+      toast.info('已為您在新分頁開啟獨立視窗，請於新分頁中安裝應用程式');
       return;
     }
 
-    if (isInstallable) {
+    if (isInstallable || window.__pwaDeferredPrompt) {
       const result = await install();
       if (result === 'accepted') {
-        toast.success('Elite Trader 已成功加入您的裝置！');
-      } else if (result === 'unavailable') {
+        toast.success('Elite Trader 已成功安裝至您的裝置！');
+      } else if (result === 'dismissed') {
+        toast.info('您已取消此次安裝，隨時可再次點擊安裝或從瀏覽器選單加入。');
+      } else {
         setActiveTab(getDefaultTab(ecosystem));
         setShowGuide(true);
       }
@@ -83,16 +86,62 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
     }
   };
 
-  const currentUrl = typeof window !== 'undefined' ? window.location.href : '/';
-
   const renderTrigger = () => {
+    if (isInIframe) {
+      const iframeClasses =
+        variant === 'header'
+          ? cn(
+              'inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-colors border bg-muted text-foreground border-border hover:bg-accent whitespace-nowrap shrink-0',
+              className
+            )
+          : variant === 'button'
+          ? cn(
+              'inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 min-h-[44px] text-xs font-bold transition-all cursor-pointer shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 text-center whitespace-normal break-words',
+              className
+            )
+          : cn(
+              'flex items-center gap-3 px-[14px] min-h-[44px] py-2 rounded-[14px] transition-all duration-200 w-full text-left select-none border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-accent border-border font-medium',
+              className
+            );
+
+      return (
+        <div className={cn(variant === 'button' ? 'flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto' : 'contents')}>
+          <a
+            href={currentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleAction}
+            className={iframeClasses}
+            title="在獨立分頁開啟以安裝 PWA 應用程式"
+          >
+            <ExternalLink size={variant === 'header' ? 14 : 16} className="shrink-0" />
+            <span className={variant === 'header' ? 'whitespace-nowrap' : 'text-[13px] tracking-tight break-words'}>
+              {variant === 'header' ? '開啟安裝' : '開啟獨立分頁安裝 App'}
+            </span>
+          </a>
+          {variant === 'button' && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab(getDefaultTab(ecosystem));
+                setShowGuide(true);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl px-4 min-h-[44px] text-xs font-semibold bg-muted text-foreground border border-border hover:bg-accent transition-colors shrink-0"
+            >
+              <span>安裝步驟教學</span>
+            </button>
+          )}
+        </div>
+      );
+    }
+
     if (variant === 'header') {
       return (
         <button
           type="button"
           onClick={handleAction}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-colors border',
+            'inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-colors border whitespace-nowrap shrink-0',
             isInstallable
               ? 'bg-primary text-primary-foreground border-primary shadow-sm'
               : 'bg-muted text-foreground border-border hover:bg-accent',
@@ -112,20 +161,16 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
           type="button"
           onClick={handleAction}
           className={cn(
-            'inline-flex items-center justify-center gap-2 rounded-xl px-5 h-11 text-xs font-bold transition-all cursor-pointer shadow-sm',
+            'inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 min-h-[44px] text-xs font-bold transition-all cursor-pointer shadow-sm text-center whitespace-normal break-words',
             isInstallable
               ? 'bg-primary text-primary-foreground hover:bg-primary/90'
               : 'bg-secondary text-secondary-foreground border border-border hover:bg-accent',
             className
           )}
         >
-          {isInIframe ? <ExternalLink size={15} /> : <Download size={15} />}
+          <Download size={15} className="shrink-0" />
           <span>
-            {isInIframe
-              ? '開啟獨立分頁安裝'
-              : isInstallable
-              ? '一鍵安裝應用程式'
-              : '安裝應用程式教學'}
+            {isInstallable ? '一鍵安裝應用程式' : '下載 / 安裝應用程式'}
           </span>
         </button>
       );
@@ -136,20 +181,16 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
         type="button"
         onClick={handleAction}
         className={cn(
-          'flex items-center gap-3 px-[14px] h-[44px] rounded-[14px] transition-all duration-200 w-full text-left select-none border',
+          'flex items-center gap-3 px-[14px] min-h-[44px] py-2 rounded-[14px] transition-all duration-200 w-full text-left select-none border',
           isInstallable
             ? 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/15 font-bold'
             : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-accent border-border font-medium',
           className
         )}
       >
-        {isInIframe ? <ExternalLink size={17} /> : <Download size={17} />}
+        <Download size={17} className="shrink-0" />
         <span className="text-[13px] tracking-tight truncate">
-          {isInIframe
-            ? '開啟獨立分頁安裝'
-            : isInstallable
-            ? '安裝桌面 / 手機 App'
-            : '安裝 App 到主畫面'}
+          {isInstallable ? '一鍵安裝桌面 / 手機 App' : '安裝 App 到主畫面'}
         </span>
       </button>
     );
@@ -169,10 +210,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                  <Download size={18} className="text-primary" />
-                  安裝 Elite Trader 應用程式
+                  <Download size={18} className="text-primary shrink-0" />
+                  <span className="break-words">安裝 Elite Trader 應用程式</span>
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   支援 iOS、Android、Windows、macOS 獨立視窗執行與離線記帳。
@@ -181,12 +222,34 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
               <button
                 type="button"
                 onClick={() => setShowGuide(false)}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
                 aria-label="關閉"
               >
                 <X size={18} />
               </button>
             </div>
+
+            {isInstallable && !isInIframe && (
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5">
+                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  您的瀏覽器已準備好一鍵安裝！
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const res = await install();
+                    if (res === 'accepted') {
+                      setShowGuide(false);
+                      toast.success('Elite Trader 已成功安裝至您的裝置！');
+                    }
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors"
+                >
+                  <Download size={15} />
+                  <span>立即跳出系統安裝視窗</span>
+                </button>
+              </div>
+            )}
 
             {isInIframe && (
               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5">
@@ -194,7 +257,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                   目前處於預覽框架 (iFrame) 中，瀏覽器會限制直接安裝。
                 </p>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  請先在新分頁開啟完整網址後，即可使用一鍵安裝或「加入主畫面」：
+                  請先在新分頁開啟完整網址後，即可直接觸發安裝或使用「加入主畫面」：
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <a
@@ -254,7 +317,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all truncate',
+                    'py-1.5 px-1.5 rounded-lg text-[11px] font-bold transition-all truncate',
                     activeTab === tab.id
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
@@ -268,30 +331,21 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             {activeTab === 'ios' && (
               <div className="space-y-3 rounded-xl bg-muted/40 border border-border p-4 text-xs">
                 <div className="flex items-center gap-2 font-bold text-foreground">
-                  <Smartphone size={16} className="text-primary" />
+                  <Smartphone size={16} className="text-primary shrink-0" />
                   <span>iOS / iPadOS (建議使用 Safari)</span>
                 </div>
-                <ol className="space-y-2.5 text-muted-foreground list-decimal list-inside leading-relaxed">
+                <ol className="space-y-2.5 text-muted-foreground leading-relaxed">
                   <li>
-                    若目前非 Safari，請先複製網址並在 <strong className="text-foreground">Safari</strong> 開啟（iOS 16.4+ Chrome/Edge 亦支援分享選單安裝）。
+                    1. 若目前在 LINE 或其他 App 內開啟，請先複製網址並在 <strong className="text-foreground">Safari</strong> 開啟（iOS 16.4+ Chrome/Edge 亦支援分享選單）。
                   </li>
-                  <li className="flex items-start gap-1.5">
-                    <span>1.</span>
-                    <span>
-                      點擊工具列上的 <strong className="text-foreground inline-flex items-center gap-1"><Share size={13} /> 分享</strong> 按鈕。
-                    </span>
+                  <li>
+                    2. 點擊工具列上的 <strong className="text-foreground inline-flex items-center gap-1"><Share size={13} /> 分享</strong> 按鈕。
                   </li>
-                  <li className="flex items-start gap-1.5">
-                    <span>2.</span>
-                    <span>
-                      向下滑動並選擇 <strong className="text-foreground inline-flex items-center gap-1"><PlusSquare size={13} /> 加入主畫面</strong>。
-                    </span>
+                  <li>
+                    3. 向下滑動並選擇 <strong className="text-foreground inline-flex items-center gap-1"><PlusSquare size={13} /> 加入主畫面</strong>。
                   </li>
-                  <li className="flex items-start gap-1.5">
-                    <span>3.</span>
-                    <span>
-                      點擊右上角 <strong className="text-foreground">「新增」</strong>，即可從主畫面全螢幕啟動。
-                    </span>
+                  <li>
+                    4. 點擊右上角 <strong className="text-foreground">「新增」</strong>，即可從主畫面全螢幕啟動。
                   </li>
                 </ol>
               </div>
@@ -300,7 +354,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             {activeTab === 'android' && (
               <div className="space-y-3 rounded-xl bg-muted/40 border border-border p-4 text-xs">
                 <div className="flex items-center gap-2 font-bold text-foreground">
-                  <Smartphone size={16} className="text-primary" />
+                  <Smartphone size={16} className="text-primary shrink-0" />
                   <span>Android (Chrome / Edge / Samsung / Firefox)</span>
                 </div>
                 <ol className="space-y-2.5 text-muted-foreground leading-relaxed">
@@ -308,7 +362,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                     1. 點擊瀏覽器右上角 <strong className="text-foreground inline-flex items-center gap-0.5"><MoreVertical size={13} /> 選單</strong>。
                   </li>
                   <li>
-                    2. 選擇 <strong className="text-foreground">「安裝應用程式」</strong> 或 <strong className="text-foreground">「加到主畫面」</strong>。
+                    2. 選擇 <strong className="text-foreground">「安裝應用程式」</strong> 或 <strong className="text-foreground">「加到主畫面」</strong>（若使用 Chrome 無痕視窗，請改用一般分頁才可安裝）。
                   </li>
                   <li>
                     3. 確認安裝後，應用程式將建立獨立圖示並支援離線開啟。
@@ -320,7 +374,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             {activeTab === 'desktop' && (
               <div className="space-y-3 rounded-xl bg-muted/40 border border-border p-4 text-xs">
                 <div className="flex items-center gap-2 font-bold text-foreground">
-                  <Monitor size={16} className="text-primary" />
+                  <Monitor size={16} className="text-primary shrink-0" />
                   <span>桌面版 Chrome / Edge / Arc / Brave</span>
                 </div>
                 <ol className="space-y-2.5 text-muted-foreground leading-relaxed">
@@ -328,10 +382,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
                     1. 查看網址列右側是否出現 <strong className="text-foreground">安裝 (電腦下載圖示)</strong>，點擊即可安裝。
                   </li>
                   <li>
-                    2. 若未顯示，請點擊右上角 <strong className="text-foreground">⋮ 選單 →「投放、儲存並分享」→「安裝此網站為應用程式」</strong>（Edge 為「應用程式 → 安裝此網站」）。
+                    2. 若未自動跳出提示，請點擊右上角 <strong className="text-foreground">⋮ 選單 →「投放、儲存並分享」→「安裝此網站為應用程式」</strong>（Edge 為「應用程式 → 安裝此網站」）。
                   </li>
                   <li>
-                    3. 若曾關閉過安裝提示，請透過網址列右側圖示或上述選單隨時重新安裝。
+                    3. 若顯示「開啟 Elite Trader」表示您已安裝過，可直接從桌面或應用程式清單啟動。
                   </li>
                 </ol>
               </div>
@@ -340,7 +394,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             {activeTab === 'macos' && (
               <div className="space-y-3 rounded-xl bg-muted/40 border border-border p-4 text-xs">
                 <div className="flex items-center gap-2 font-bold text-foreground">
-                  <Monitor size={16} className="text-primary" />
+                  <Monitor size={16} className="text-primary shrink-0" />
                   <span>macOS Safari (macOS Sonoma 14+)</span>
                 </div>
                 <ol className="space-y-2.5 text-muted-foreground leading-relaxed">
@@ -354,7 +408,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleCopyUrl}
@@ -384,9 +438,9 @@ export const OfflineIndicator: React.FC = () => {
   if (isOnline) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-xl bg-amber-500 px-3.5 py-2 text-xs font-bold text-black shadow-lg border border-amber-400">
+    <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-50 flex items-center gap-2 rounded-xl bg-amber-500 px-3.5 py-2 text-xs font-bold text-black shadow-lg border border-amber-400 max-w-md">
       <WifiOff size={14} className="shrink-0" />
-      <span>離線模式運行中 — 異動將保存於本機並在恢復連線後同步</span>
+      <span className="break-words">離線模式運行中 — 異動將保存於本機並在恢復連線後同步</span>
     </div>
   );
 };

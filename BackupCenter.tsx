@@ -212,7 +212,7 @@ export function DataManagement({
   };
 
   return (
-    <div className="space-y-8 pb-10 max-w-5xl mx-auto">
+    <div className="space-y-6 sm:space-y-8 pb-10 w-full min-w-0 max-w-5xl mx-auto">
       {/* Hidden File Input for JSON Restore */}
       <input
         type="file"
@@ -223,29 +223,29 @@ export function DataManagement({
       />
 
       {/* Main Backup Center Card */}
-      <Card className="bg-card border-border rounded-3xl overflow-hidden shadow-sm">
-        <div className="p-6 md:p-8 border-b border-border bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-transparent">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+      <Card className="bg-card border-border rounded-3xl overflow-hidden shadow-sm w-full min-w-0">
+        <div className="p-4 sm:p-6 md:p-8 border-b border-border bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-transparent">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 min-w-0">
+            <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+              <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
                 <DatabaseIcon size={24} />
               </div>
-              <div>
-                <CardTitle className="text-xl font-black text-foreground">資料備份與還原中心</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground mt-0.5">
+              <div className="min-w-0">
+                <CardTitle className="text-lg sm:text-xl font-black text-foreground break-words">資料備份與還原中心</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-0.5 break-words leading-relaxed">
                   支援本機離線 JSON 檔案完整匯出（含圖片）與個人雲端雙向同步覆蓋
                 </CardDescription>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted border border-border text-[11px] font-mono text-muted-foreground max-w-full overflow-hidden">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted border border-border text-[11px] font-mono text-muted-foreground max-w-full overflow-hidden min-w-0 self-start md:self-auto">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               <span className="truncate">帳號：{user?.email || '訪客模式 (本地)'}</span>
             </div>
           </div>
         </div>
 
-        <CardContent className="p-6 md:p-8 space-y-8 relative">
+        <CardContent className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 relative min-w-0">
           {/* Progress Overlay */}
           <AnimatePresence>
             {(isBackingUp || isRestoring || isExportingJson || isImportingJson) && (
@@ -355,51 +355,57 @@ export function DataManagement({
           </div>
 
           {/* Section 1: JSON File Backup & Restore (Offline & Complete with Images) */}
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center gap-2 text-foreground">
-              <FileJson size={18} className="text-amber-500" />
-              <h3 className="font-black text-sm uppercase tracking-wider">JSON 檔案備份與還原 (可離線永久保存)</h3>
+          <div className="space-y-4 pt-2 min-w-0">
+            <div className="flex items-center gap-2 text-foreground min-w-0">
+              <FileJson size={18} className="text-amber-500 shrink-0" />
+              <h3 className="font-black text-xs sm:text-sm uppercase tracking-wider break-words leading-snug min-w-0">
+                JSON 檔案備份與還原 (可離線永久保存)
+              </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
               <button 
                 type="button"
                 onClick={handleExportJson}
                 disabled={isBackingUp || isRestoring || isExportingJson || isImportingJson}
-                className="min-h-[7.5rem] h-auto w-full rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white flex flex-col gap-2 items-center justify-center shadow-lg shadow-amber-500/15 cursor-pointer border-none transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none py-4 px-4 sm:px-5 whitespace-normal overflow-hidden text-center"
+                className="block w-full max-w-full min-w-0 min-h-[7rem] h-auto rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-lg shadow-amber-500/15 cursor-pointer border-none transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none p-4 sm:p-5 overflow-hidden text-center"
               >
-                <div className="flex items-center justify-center flex-wrap gap-2 font-black text-base sm:text-lg max-w-full">
-                  {isExportingJson ? <Loader2 className="animate-spin shrink-0" size={20} /> : <Download className="shrink-0" size={20} />}
-                  <span className="break-words">下載 JSON 完整備份</span>
+                <div className="w-full min-w-0 flex flex-col items-center justify-center gap-1.5 sm:gap-2">
+                  <div className="w-full min-w-0 flex items-center justify-center flex-wrap gap-1.5 sm:gap-2 font-black text-sm sm:text-base md:text-lg leading-tight">
+                    {isExportingJson ? <Loader2 className="animate-spin shrink-0" size={18} /> : <Download className="shrink-0" size={18} />}
+                    <span className="break-words">下載 JSON 完整備份</span>
+                  </div>
+                  <p className="w-full min-w-0 text-[11px] sm:text-xs opacity-95 font-medium text-center whitespace-normal break-words leading-relaxed">
+                    匯出最新 {localTrades.length} 筆交易、標籤與圖片附件至本機檔案
+                  </p>
                 </div>
-                <span className="block w-full min-w-0 text-[11px] opacity-90 font-medium text-center whitespace-normal break-words leading-relaxed">
-                  即時擷取目前最新 {localTrades.length} 筆交易、標籤及所有圖片 Base64，下載至裝置
-                </span>
               </button>
 
               <button 
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isBackingUp || isRestoring || isExportingJson || isImportingJson}
-                className="min-h-[7.5rem] h-auto w-full rounded-2xl border-2 border-border hover:border-amber-500/50 bg-card hover:bg-amber-500/5 text-foreground flex flex-col gap-2 items-center justify-center cursor-pointer transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none shadow-sm py-4 px-4 sm:px-5 whitespace-normal overflow-hidden text-center"
+                className="block w-full max-w-full min-w-0 min-h-[7rem] h-auto rounded-2xl border-2 border-border hover:border-amber-500/50 bg-card hover:bg-amber-500/5 text-foreground cursor-pointer transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none shadow-sm p-4 sm:p-5 overflow-hidden text-center"
               >
-                <div className="flex items-center justify-center flex-wrap gap-2 font-black text-base sm:text-lg max-w-full">
-                  {isImportingJson ? <Loader2 className="animate-spin shrink-0" size={20} /> : <Upload size={20} className="text-amber-500 shrink-0" />}
-                  <span className="break-words">匯入 JSON 備份檔案</span>
+                <div className="w-full min-w-0 flex flex-col items-center justify-center gap-1.5 sm:gap-2">
+                  <div className="w-full min-w-0 flex items-center justify-center flex-wrap gap-1.5 sm:gap-2 font-black text-sm sm:text-base md:text-lg leading-tight">
+                    {isImportingJson ? <Loader2 className="animate-spin shrink-0" size={18} /> : <Upload size={18} className="text-amber-500 shrink-0" />}
+                    <span className="break-words">匯入 JSON 備份檔案</span>
+                  </div>
+                  <p className="w-full min-w-0 text-[11px] sm:text-xs text-muted-foreground font-medium text-center whitespace-normal break-words leading-relaxed">
+                    驗證並還原備份中的交易紀錄、策略與圖片，同步至資料庫
+                  </p>
                 </div>
-                <span className="block w-full min-w-0 text-[11px] text-muted-foreground font-medium text-center whitespace-normal break-words leading-relaxed">
-                  驗證並還原備份檔案中的所有交易紀錄、策略與截圖圖片，自動同步至資料庫
-                </span>
               </button>
             </div>
           </div>
 
           {/* Section 2: Cloud Firestore Sync (Online & Cross-Device) */}
-          <div className="space-y-4 pt-4 border-t border-border">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-foreground">
+          <div className="space-y-4 pt-4 border-t border-border min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-foreground min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <CloudUpload size={18} className="text-blue-500 shrink-0" />
-                <h3 className="font-black text-sm uppercase tracking-wider break-words">個人雲端同步備份 (Google 帳號綁定)</h3>
+                <h3 className="font-black text-xs sm:text-sm uppercase tracking-wider break-words leading-snug min-w-0">個人雲端同步備份 (Google 帳號綁定)</h3>
               </div>
               {!user && (
                 <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1 shrink-0">
@@ -409,35 +415,39 @@ export function DataManagement({
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
               <button 
                 type="button"
                 onClick={handleCloudUpload}
                 disabled={!user || isBackingUp || isRestoring || isExportingJson || isImportingJson}
-                className="min-h-[7.5rem] h-auto w-full rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white flex flex-col gap-2 items-center justify-center shadow-lg shadow-blue-500/15 cursor-pointer border-none transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none py-4 px-4 sm:px-5 whitespace-normal overflow-hidden text-center"
+                className="block w-full max-w-full min-w-0 min-h-[7rem] h-auto rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white shadow-lg shadow-blue-500/15 cursor-pointer border-none transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none p-4 sm:p-5 overflow-hidden text-center"
               >
-                <div className="flex items-center justify-center flex-wrap gap-2 font-black text-base sm:text-lg max-w-full">
-                  {isBackingUp ? <Loader2 className="animate-spin shrink-0" size={20} /> : <CloudUpload className="shrink-0" size={22} />}
-                  <span className="break-words">備份到個人雲端</span>
+                <div className="w-full min-w-0 flex flex-col items-center justify-center gap-1.5 sm:gap-2">
+                  <div className="w-full min-w-0 flex items-center justify-center flex-wrap gap-1.5 sm:gap-2 font-black text-sm sm:text-base md:text-lg leading-tight">
+                    {isBackingUp ? <Loader2 className="animate-spin shrink-0" size={18} /> : <CloudUpload className="shrink-0" size={20} />}
+                    <span className="break-words">備份到個人雲端</span>
+                  </div>
+                  <p className="w-full min-w-0 text-[11px] sm:text-xs opacity-95 font-medium text-center whitespace-normal break-words leading-relaxed">
+                    將本機最新 {localTrades.length} 筆交易同步至雲端，支援跨裝置讀取
+                  </p>
                 </div>
-                <span className="block w-full min-w-0 text-[11px] opacity-90 font-medium text-center whitespace-normal break-words leading-relaxed">
-                  將本機目前 {localTrades.length} 筆最新交易同步覆蓋至雲端，實現跨裝置使用
-                </span>
               </button>
 
               <button 
                 type="button"
                 onClick={handleCloudDownloadClick}
                 disabled={!user || isRestoring || isBackingUp || isExportingJson || isImportingJson}
-                className="min-h-[7.5rem] h-auto w-full rounded-2xl border-2 border-border hover:border-blue-500/50 bg-card hover:bg-blue-500/5 text-blue-600 dark:text-blue-400 flex flex-col gap-2 items-center justify-center cursor-pointer transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none shadow-sm py-4 px-4 sm:px-5 whitespace-normal overflow-hidden text-center"
+                className="block w-full max-w-full min-w-0 min-h-[7rem] h-auto rounded-2xl border-2 border-border hover:border-blue-500/50 bg-card hover:bg-blue-500/5 text-blue-600 dark:text-blue-400 cursor-pointer transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none shadow-sm p-4 sm:p-5 overflow-hidden text-center"
               >
-                <div className="flex items-center justify-center flex-wrap gap-2 font-black text-base sm:text-lg max-w-full">
-                  {isRestoring ? <Loader2 className="animate-spin shrink-0" size={20} /> : <CloudDownload className="shrink-0" size={22} />}
-                  <span className="break-words">從雲端還原資料</span>
+                <div className="w-full min-w-0 flex flex-col items-center justify-center gap-1.5 sm:gap-2">
+                  <div className="w-full min-w-0 flex items-center justify-center flex-wrap gap-1.5 sm:gap-2 font-black text-sm sm:text-base md:text-lg leading-tight">
+                    {isRestoring ? <Loader2 className="animate-spin shrink-0" size={18} /> : <CloudDownload className="shrink-0" size={20} />}
+                    <span className="break-words">從雲端還原資料</span>
+                  </div>
+                  <p className="w-full min-w-0 text-[11px] sm:text-xs text-muted-foreground font-medium text-center whitespace-normal break-words leading-relaxed">
+                    自個人雲端取得最新備份覆蓋本機，還原多裝置或新手機資料
+                  </p>
                 </div>
-                <span className="block w-full min-w-0 text-[11px] text-muted-foreground font-medium text-center whitespace-normal break-words leading-relaxed">
-                  自個人雲端取得最新備份覆蓋本機，同步多台裝置或新手機資料
-                </span>
               </button>
             </div>
           </div>
@@ -476,18 +486,18 @@ export function DataManagement({
                   </div>
 
                   <div className="p-4 bg-muted/40 rounded-2xl border border-border space-y-2 text-xs">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>綁定 Google 帳號：</span>
-                      <span className="text-foreground font-mono font-medium">{user?.email}</span>
+                    <div className="flex flex-wrap justify-between gap-2 text-muted-foreground">
+                      <span className="shrink-0">綁定 Google 帳號：</span>
+                      <span className="text-foreground font-mono font-medium break-all min-w-0">{user?.email}</span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>雲端最新紀錄：</span>
+                    <div className="flex flex-wrap justify-between gap-2 text-muted-foreground">
+                      <span className="shrink-0">雲端最新紀錄：</span>
                       <span className="text-blue-600 dark:text-blue-400 font-bold font-mono">
                         {cloudInfo ? `${cloudInfo.tradeCount} 筆交易紀錄` : '即時讀取中'}
                       </span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>雲端最後更新時間：</span>
+                    <div className="flex flex-wrap justify-between gap-2 text-muted-foreground">
+                      <span className="shrink-0">雲端最後更新時間：</span>
                       <span className="text-foreground font-mono">
                         {cloudInfo?.updatedAt ? new Date(cloudInfo.updatedAt).toLocaleString() : '即時最新'}
                       </span>
@@ -498,7 +508,7 @@ export function DataManagement({
                     ⚠️ 提示：還原操作將以雲端上的最新紀錄同步至這台裝置，若本機有尚未備份的新交易，請先點擊「備份到個人雲端」避免遺失。
                   </p>
 
-                  <div className="flex items-center justify-end gap-3 pt-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 pt-2">
                     <Button
                       type="button"
                       variant="ghost"
@@ -512,10 +522,10 @@ export function DataManagement({
                       type="button"
                       size="sm"
                       onClick={executeCloudRestore}
-                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold gap-2 px-5 rounded-xl shadow-lg shadow-blue-500/20"
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-bold gap-2 px-4 sm:px-5 rounded-xl shadow-lg shadow-blue-500/20 whitespace-normal h-auto min-h-[36px] py-2"
                     >
-                      <CloudDownload size={15} />
-                      確認從雲端還原
+                      <CloudDownload size={15} className="shrink-0" />
+                      <span>確認從雲端還原</span>
                     </Button>
                   </div>
                 </div>
@@ -534,26 +544,26 @@ export function DataManagement({
                 onClick={() => { setConfirmAction(null); setSelectedJsonFile(null); }}
               >
                 <div 
-                  className="w-full max-w-md bg-card border border-border text-card-foreground rounded-3xl p-6 shadow-2xl space-y-5"
+                  className="w-full max-w-md bg-card border border-border text-card-foreground rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-3 text-amber-500">
                     <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 shrink-0">
                       <FileJson size={24} />
                     </div>
-                    <div>
-                      <h4 className="text-base font-bold text-foreground">確認匯入 JSON 備份檔案？</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">解析備份檔並合併還原交易紀錄與圖片附件。</p>
+                    <div className="min-w-0">
+                      <h4 className="text-base font-bold text-foreground break-words">確認匯入 JSON 備份檔案？</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5 break-words">解析備份檔並合併還原交易紀錄與圖片附件。</p>
                     </div>
                   </div>
 
                   <div className="p-4 bg-muted/40 rounded-2xl border border-border space-y-2 text-xs">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>檔案名稱：</span>
-                      <span className="text-foreground font-mono truncate max-w-[220px] font-medium">{selectedJsonFile.name}</span>
+                    <div className="flex flex-wrap justify-between gap-2 text-muted-foreground">
+                      <span className="shrink-0">檔案名稱：</span>
+                      <span className="text-foreground font-mono break-all font-medium min-w-0">{selectedJsonFile.name}</span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>檔案大小：</span>
+                    <div className="flex flex-wrap justify-between gap-2 text-muted-foreground">
+                      <span className="shrink-0">檔案大小：</span>
                       <span className="text-amber-600 dark:text-amber-400 font-mono font-bold">
                         {(selectedJsonFile.size / 1024).toFixed(1)} KB
                       </span>
@@ -564,7 +574,7 @@ export function DataManagement({
                     匯入完成後，系統將會自動驗證資料完整性，並將新增的交易同步至本地資料庫與雲端（若已登入）。
                   </p>
 
-                  <div className="flex items-center justify-end gap-3 pt-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 pt-2">
                     <Button
                       type="button"
                       variant="ghost"
@@ -578,10 +588,10 @@ export function DataManagement({
                       type="button"
                       size="sm"
                       onClick={executeImportJson}
-                      className="bg-amber-600 hover:bg-amber-500 text-white font-bold gap-2 px-5 rounded-xl shadow-lg shadow-amber-600/20"
+                      className="bg-amber-600 hover:bg-amber-500 text-white font-bold gap-2 px-4 sm:px-5 rounded-xl shadow-lg shadow-amber-600/20 whitespace-normal h-auto min-h-[36px] py-2"
                     >
-                      <Upload size={15} />
-                      確認匯入還原
+                      <Upload size={15} className="shrink-0" />
+                      <span>確認匯入還原</span>
                     </Button>
                   </div>
                 </div>
@@ -606,18 +616,18 @@ const InstallAppSection = ({ isStandalone: propStandalone }: { isStandalone?: bo
   const isStandalone = propStandalone ?? hookStandalone;
 
   return (
-    <Card className="bg-card border-border rounded-3xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center gap-6 text-card-foreground">
-      <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-        <Download size={28} />
+    <Card className="bg-card border-border rounded-3xl p-4 sm:p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center gap-4 sm:gap-6 text-card-foreground w-full min-w-0 overflow-hidden">
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
+        <Download size={26} />
       </div>
-      <div className="text-left flex-1 space-y-1">
-        <h3 className="font-bold text-base text-foreground">安裝 Elite Trader 應用程式 (PWA)</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
+      <div className="text-center md:text-left flex-1 min-w-0 space-y-1">
+        <h3 className="font-bold text-base text-foreground break-words">安裝 Elite Trader 應用程式 (PWA)</h3>
+        <p className="text-xs text-muted-foreground leading-relaxed break-words">
           將應用程式加入主螢幕或桌面 Dock 以獲得更穩定的離線存取與原生視窗體驗。支援 iOS、Android、Windows 與 macOS。
         </p>
       </div>
 
-      <div className="w-full md:w-auto shrink-0">
+      <div className="w-full md:w-auto shrink-0 min-w-0">
         {isStandalone ? (
           <div className="px-5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-2 font-mono text-xs font-bold">
             <ShieldCheck size={16} />

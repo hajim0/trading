@@ -15,6 +15,8 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        injectRegister: false,
+        useCredentials: true,
         includeAssets: [
           'favicon.ico',
           'apple-touch-icon.png',
@@ -98,7 +100,7 @@ export default defineConfig(({ mode }) => {
         },
         devOptions: {
           enabled: true,
-          type: 'module',
+          type: 'classic',
           navigateFallback: 'index.html',
         },
       }),
